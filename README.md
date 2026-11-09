@@ -92,7 +92,7 @@ docker build -t <usuario>/moviehub-bff .
 docker push <usuario>/moviehub-bff
 ```
 
-O GitHub Actions publica a imagem a cada push na `main`. O script `infra/azure/deploy.sh` cria no Azure: Storage Account e fila, Azure SQL, ambiente do Container Apps com os dois microsserviços e o BFF (imagens do Docker Hub), Function App, Static Web App e API Management com a política de CORS, limite de requisições e chave de assinatura.
+O GitHub Actions publica a imagem a cada push na `main`. O script `infra/azure/deploy.sh` cria no Azure: Storage Account e fila, Azure SQL, ambiente do Container Apps com os dois microsserviços e o BFF (imagens do Docker Hub), Function App, site estático do frontend no Storage e API Management com a política de CORS, limite de requisições e chave de assinatura.
 
 ## Repositórios do MovieHub
 

@@ -20,7 +20,6 @@ set -euo pipefail
 SUFFIX="${SUFFIX:-$(printf '%s' "$DOCKERHUB_USER" | cksum | cut -c1-5)}"
 RG="${RG:-rg-moviehub}"
 LOCATION="${LOCATION:-eastus2}"
-SWA_LOCATION="${SWA_LOCATION:-eastus2}"
 STORAGE="${STORAGE:-moviehubst$SUFFIX}"
 ACA_ENV="${ACA_ENV:-moviehub-env}"
 FUNC_APP="${FUNC_APP:-moviehub-func-$SUFFIX}"
@@ -28,7 +27,6 @@ SQL_SERVER="${SQL_SERVER:-moviehub-sql-$SUFFIX}"
 SQL_DB="${SQL_DB:-moviehub}"
 SQL_ADMIN="${SQL_ADMIN:-moviehubadmin}"
 APIM="${APIM:-moviehub-apim-$SUFFIX}"
-SWA="${SWA:-moviehub-web-$SUFFIX}"
 QUEUE="avaliacoes-eventos"
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -127,10 +125,12 @@ infra() {
   fi
   save BFF_URL "https://$BFF"
 
-  step "Static Web App (endereço do frontend, usado no CORS do gateway)"
-  has az staticwebapp show -n "$SWA" -g "$RG" || az staticwebapp create -n "$SWA" -g "$RG" -l "$SWA_LOCATION" --sku Free -o none
-  SWA_HOST=$(az staticwebapp show -n "$SWA" -g "$RG" --query defaultHostname -o tsv)
-  save FRONTEND_URL "https://$SWA_HOST"
+  step "Site estático no Storage (endereço do frontend, usado no CORS do gateway)"
+  # error document = index.html: as rotas do React (/filmes/...) funcionam ao recarregar a página
+  az storage blob service-properties update --connection-string "$STORAGE_CS" --static-website --index-document index.html --404-document index.html -o none
+  WEB_URL=$(az storage account show -n "$STORAGE" -g "$RG" --query primaryEndpoints.web -o tsv)
+  FRONTEND_ORIGIN="${WEB_URL%/}"
+  save FRONTEND_URL "$FRONTEND_ORIGIN"
 
   step "Aguardando o BFF responder (o contêiner pode estar iniciando)"
   for i in $(seq 1 24); do
@@ -149,7 +149,7 @@ infra() {
   SUB_ID=$(az account show --query id -o tsv)
   APIM_ID="/subscriptions/$SUB_ID/resourceGroups/$RG/providers/Microsoft.ApiManagement/service/$APIM"
   # corpos JSON em arquivo (@arquivo) para não depender das regras de aspas do shell (Windows/Git Bash)
-  sed "s#__FRONTEND_ORIGIN__#https://$SWA_HOST#" "$HERE/apim-policy.xml" |
+  sed "s#__FRONTEND_ORIGIN__#$FRONTEND_ORIGIN#" "$HERE/apim-policy.xml" |
     node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>process.stdout.write(JSON.stringify({properties:{format:"rawxml",value:s}})))' > "$HERE/.deploy-policy.json"
   echo '{"properties":{"scope":"/apis/moviehub","displayName":"MovieHub Frontend","state":"active"}}' > "$HERE/.deploy-sub.json"
   az rest --method put --uri "https://management.azure.com$APIM_ID/apis/moviehub/policies/policy?api-version=2022-08-01" --body @"$HERE/.deploy-policy.json" -o none
@@ -164,13 +164,13 @@ frontend() {
   SUB_ID=$(az account show --query id -o tsv)
   APIM_ID="/subscriptions/$SUB_ID/resourceGroups/$RG/providers/Microsoft.ApiManagement/service/$APIM"
   APIM_KEY=$(az rest --method post --uri "https://management.azure.com$APIM_ID/subscriptions/moviehub-frontend/listSecrets?api-version=2022-08-01" --query primaryKey -o tsv)
-  SWA_TOKEN=$(az staticwebapp secrets list -n "$SWA" -g "$RG" --query properties.apiKey -o tsv)
+  STORAGE_CS=$(az storage account show-connection-string -n "$STORAGE" -g "$RG" -o tsv)
 
   step "Build do microfrontend apontando para o API Management"
   (cd "$ROOT/moviehub-frontend" && npm ci && VITE_BFF_URL="$GATEWAY_URL" VITE_APIM_SUBSCRIPTION_KEY="$APIM_KEY" npm run build)
 
-  step "Publicação no Static Web Apps"
-  (cd "$ROOT/moviehub-frontend" && npx --yes @azure/static-web-apps-cli@2 deploy ./dist --deployment-token "$SWA_TOKEN" --env production)
+  step "Publicação no site estático do Storage"
+  az storage blob upload-batch --connection-string "$STORAGE_CS" --source "$ROOT/moviehub-frontend/dist" --destination '$web' --overwrite --only-show-errors -o none
 }
 
 case "${1:-all}" in
