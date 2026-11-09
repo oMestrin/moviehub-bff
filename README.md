@@ -106,7 +106,7 @@ O GitHub Actions publica a imagem a cada push na `main`. O script `infra/azure/d
 
 ## Grupo
 
-PJBL de Arquitetura de Soluções com Cloud — PUCPR, prof. Manoel Valerio da Silveira Neto.
+PJBL de Arquitetura e Soluções Cloud — PUCPR, prof. Manoel Valerio da Silveira Neto.
 
 - Brayan Calisto dos Santos
 - Caio Gabriel Silva
