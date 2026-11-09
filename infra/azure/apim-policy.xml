@@ -1,0 +1,41 @@
+<!-- Política da API "moviehub" no Azure API Management (escopo da API). -->
+<policies>
+  <inbound>
+    <base />
+    <cors allow-credentials="false" terminate-unmatched-request="false">
+      <allowed-origins>
+        <origin>__FRONTEND_ORIGIN__</origin>
+        <origin>http://localhost:5173</origin>
+        <origin>http://localhost:4173</origin>
+      </allowed-origins>
+      <allowed-methods preflight-result-max-age="300">
+        <method>GET</method>
+        <method>POST</method>
+        <method>PUT</method>
+        <method>DELETE</method>
+        <method>OPTIONS</method>
+      </allowed-methods>
+      <allowed-headers>
+        <header>content-type</header>
+        <header>accept</header>
+        <header>ocp-apim-subscription-key</header>
+      </allowed-headers>
+    </cors>
+    <!-- até 120 chamadas por minuto por assinatura -->
+    <rate-limit calls="120" renewal-period="60" />
+    <!-- a chave de assinatura não segue para o BFF -->
+    <set-header name="Ocp-Apim-Subscription-Key" exists-action="delete" />
+    <set-header name="X-Forwarded-By" exists-action="override">
+      <value>moviehub-apim</value>
+    </set-header>
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>

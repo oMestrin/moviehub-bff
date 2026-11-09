@@ -1,0 +1,71 @@
+# Ambiente local completo do MovieHub.
+# Pré-requisito: os repositórios clonados lado a lado:
+#   moviehub-ms-filmes/  moviehub-ms-avaliacoes/  moviehub-function/  moviehub-bff/  moviehub-frontend/
+# Uso (dentro de moviehub-bff/infra):  docker compose up --build
+# Depois: Swagger do BFF em http://localhost:3000/docs e o frontend com `npm run dev` em moviehub-frontend.
+
+name: moviehub
+
+x-azurite-connection: &azurite "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;"
+
+services:
+  mongo:
+    image: mongo:7
+    ports: ["27017:27017"]
+
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "MovieHub#Local2026"   # senha só do container local
+    ports: ["1433:1433"]
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck
+    ports: ["10000:10000", "10001:10001", "10002:10002"]
+
+  ms-filmes:
+    build: ../../moviehub-ms-filmes
+    image: ${DOCKERHUB_USER:-moviehub}/moviehub-ms-filmes:latest
+    environment:
+      MONGODB_URI: mongodb://mongo:27017
+      MONGODB_DB: moviehub
+    ports: ["3001:8080"]
+    depends_on: [mongo]
+    restart: on-failure
+
+  ms-avaliacoes:
+    build: ../../moviehub-ms-avaliacoes
+    image: ${DOCKERHUB_USER:-moviehub}/moviehub-ms-avaliacoes:latest
+    environment:
+      SQL_CONNECTION_STRING: "Server=mssql,1433;Database=master;User Id=sa;Password=MovieHub#Local2026;Encrypt=false;TrustServerCertificate=true"
+      STORAGE_CONNECTION_STRING: *azurite
+      EVENTS_QUEUE_NAME: avaliacoes-eventos
+    ports: ["3002:8080"]
+    depends_on: [mssql, azurite]
+    restart: on-failure   # o SQL Server leva alguns segundos para aceitar conexões
+
+  function:
+    build: ../../moviehub-function
+    environment:
+      AzureWebJobsStorage: *azurite
+      EventsStorage: *azurite
+      EVENTS_QUEUE_NAME: avaliacoes-eventos
+      MOVIES_SERVICE_URL: http://ms-filmes:8080
+      REVIEWS_SERVICE_URL: http://ms-avaliacoes:8080
+      INSIGHTS_AUTH_LEVEL: anonymous   # local sem chave; no Azure fica "function"
+    ports: ["7071:80"]
+    depends_on: [azurite, ms-filmes, ms-avaliacoes]
+
+  bff:
+    build: ..
+    image: ${DOCKERHUB_USER:-moviehub}/moviehub-bff:latest
+    environment:
+      MOVIES_SERVICE_URL: http://ms-filmes:8080
+      REVIEWS_SERVICE_URL: http://ms-avaliacoes:8080
+      INSIGHTS_FUNCTION_URL: http://function:80/api/insights
+      CORS_ORIGIN: "*"
+    ports: ["3000:8080"]
+    depends_on: [ms-filmes, ms-avaliacoes, function]

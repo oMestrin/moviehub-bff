@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Testes unitários e de API
+        run: npm run test:unit
+      - name: Testes de arquitetura (ArchUnitTS)
+        run: npm run test:arch
+
+  docker:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+    steps:
+      - name: Publicação ignorada (secrets do Docker Hub não configurados)
+        if: env.HAS_DOCKERHUB != 'true'
+        run: echo "Configure DOCKERHUB_USERNAME e DOCKERHUB_TOKEN em Settings > Secrets and variables > Actions para publicar a imagem."
+      - uses: actions/checkout@v4
+        if: env.HAS_DOCKERHUB == 'true'
+      - uses: docker/login-action@v3
+        if: env.HAS_DOCKERHUB == 'true'
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        if: env.HAS_DOCKERHUB == 'true'
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/moviehub-bff:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/moviehub-bff:${{ github.sha }}
