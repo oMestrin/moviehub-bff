@@ -1,0 +1,14 @@
+// Usado apenas pelo ArchUnitTS para montar o grafo de dependências entre os
+// arquivos .js do serviço (não há build nem transpilação).
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "target": "es2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.js"]
+}

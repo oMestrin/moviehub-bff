@@ -1,0 +1,26 @@
+{
+  "name": "moviehub-bff",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MovieHub — BFF (Express) que agrega os microsserviços e a Azure Function, Clean Architecture + Vertical Slice",
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node src/main.js",
+    "dev": "node --watch src/main.js",
+    "test": "node --test --test-reporter=spec \"test/**/*.test.js\"",
+    "test:unit": "node --test --test-reporter=spec \"test/unit/*.test.js\" \"test/api/*.test.js\"",
+    "test:arch": "node --test --test-reporter=spec \"test/architecture/*.test.js\""
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "express": "^5.3.0",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "archunit": "^2.5.4",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,2 @@
+# scripts shell sempre com LF (funcionam no Git Bash/WSL mesmo com core.autocrlf)
+*.sh text eol=lf
